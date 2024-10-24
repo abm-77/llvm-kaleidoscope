@@ -33,6 +33,7 @@ public:
     assert(ptr + aligned_size < capacity);
     u8 *res = data + ptr;
     ptr += aligned_size;
+    memset(res, 0, aligned_size);
     return res;
   }
 
