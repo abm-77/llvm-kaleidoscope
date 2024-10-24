@@ -67,18 +67,7 @@ struct Token {
   SourceSpan span;
 };
 
-enum LexErrorType {
-  UNTERMINATED_STRING,
-  UNTERMINATED_CHAR_LITERAL,
-  INVALID_CHARACTER,
-};
-
-struct LexError {
-  LexErrorType type;
-  SourceLocation location;
-};
-
-const static StaticStringMap<TokenType, 32> KEYWORDS({
+const static StaticStringMap<TokenType, 13> KEYWORDS({
     {"extern", TOKEN_EXTERN},
     {"def", TOKEN_DEF},
     {"for", TOKEN_FOR},
@@ -97,6 +86,7 @@ const static StaticStringMap<TokenType, 32> KEYWORDS({
 class Lexer {
 private:
   static bool eof() { return curr_pos.byte_offset >= src.len; }
+
   static u8 next_char() {
     if (eof())
       return '\0';
@@ -127,7 +117,7 @@ public:
     return Slice{
         .buffer = src.content,
         .start = start_pos.byte_offset,
-        .len = (curr_pos.byte_offset - start_pos.byte_offset) + 1,
+        .len = (curr_pos.byte_offset - start_pos.byte_offset),
     };
   }
 
@@ -155,7 +145,7 @@ public:
       next_char();
     Slice lexeme = get_source_slice();
     char *keyword = arena->alloc<char>(lexeme.len);
-    memcpy(keyword, lexeme.buffer + lexeme.start, lexeme.len + 1);
+    memcpy(keyword, lexeme.buffer + lexeme.start, lexeme.len);
     keyword[lexeme.len] = 0;
     const TokenType *type = KEYWORDS.get(keyword);
     return (type) ? make_token(*type) : make_token(TOKEN_IDENTIFIER);
@@ -168,16 +158,17 @@ public:
   }
 
   static Token consume_token() {
-    start_pos = curr_pos;
-
     u8 ch;
     do {
+      start_pos = curr_pos;
       ch = next_char();
     } while (isspace(ch));
 
     if (ch == '#') {
       while (ch != '\n')
         ch = next_char();
+      start_pos = curr_pos;
+      ch = next_char();
     }
 
     if (ch == '\0')
@@ -218,9 +209,10 @@ public:
 
     return make_token(TOKEN_INVALID);
   }
+
   static int lex(Arena *A, const char *filename) {
-    FileBuffer f = read_entire_file(arena, filename);
     arena = A;
+    src = read_entire_file(arena, filename);
     curr_pos = SourceLocation{
         .byte_offset = 0,
         .line = 1,
@@ -228,12 +220,20 @@ public:
         .source_name = filename,
     };
 
+    while (!eof()) {
+      Token token = consume_token();
+      char buf[256];
+      memcpy(buf, token.lexeme.buffer + token.lexeme.start, token.lexeme.len);
+      buf[token.lexeme.len] = 0;
+      printf("%s\n", buf);
+    }
+
     return 0;
   }
 
 private:
-  static Arena *arena;
-  static FileBuffer src;
-  static SourceLocation start_pos;
-  static SourceLocation curr_pos;
+  inline static Arena *arena;
+  inline static FileBuffer src;
+  inline static SourceLocation start_pos;
+  inline static SourceLocation curr_pos;
 };

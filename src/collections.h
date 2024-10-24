@@ -59,14 +59,14 @@ public:
   const DataType *get(const char *key) const {
     u32 count = 0;
     u32 h = hash(key) % N;
-    while (strcmp(slots[h].kv.key, key) != 0 && count < N)
+    while (strcmp(slots[h].kv.key, key) != 0 && count++ < N)
       h = (h + 1) % N;
     return count < N ? &slots[h].kv.value : nullptr;
   }
 
 private:
   // djb2 hash
-  u32 hash(const char *key) {
+  u32 hash(const char *key) const {
     u64 hash = 5381;
     i32 c;
     while ((c = *key++) != 0)
