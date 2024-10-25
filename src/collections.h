@@ -87,6 +87,7 @@ private:
     ChunkHeader *next;
   };
 
+public:
   class Iterator {
   public:
     void next() {
@@ -116,6 +117,10 @@ private:
       v = &get_chunk(curr_chunk)[0];
     }
 
+    Iterator()
+        : idx(0), len(0), chunk_size(0), v(nullptr), curr_chunk(nullptr),
+          finished(false) {}
+
   private:
     i32 idx;
     u32 len;
@@ -133,11 +138,11 @@ public:
     tail = head;
   }
 
-  void push(i32 a) {
+  void push(DataType v) {
     DataType *items = get_chunk(tail);
 
     i32 idx = len % chunk_size;
-    items[idx] = a;
+    items[idx] = v;
     len += 1;
 
     if (idx == chunk_size - 1) {

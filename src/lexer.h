@@ -6,6 +6,7 @@
 #include "mem.h"
 #include <cctype>
 #include <cstring>
+#include <ctime>
 
 #define make_equal_variant(T) make_token_if_else('=', T##_EQUAL, T)
 
@@ -36,7 +37,7 @@ enum TokenType {
   TOKEN_NOT,
   TOKEN_CONTINUE,
   TOKEN_RETURN,
-  TOKEN_NUMBER,
+  TOKEN_NUMERIC,
   TOKEN_LPAREN,
   TOKEN_RPAREN,
   TOKEN_SEMICOLON,
@@ -144,17 +145,17 @@ public:
     while (isalnum(peek()) && !eof())
       next_char();
     Slice lexeme = get_source_slice();
-    char *keyword = arena->alloc<char>(lexeme.len);
+    char keyword[64];
     memcpy(keyword, lexeme.buffer + lexeme.start, lexeme.len);
     keyword[lexeme.len] = 0;
     const TokenType *type = KEYWORDS.get(keyword);
     return (type) ? make_token(*type) : make_token(TOKEN_IDENTIFIER);
   }
 
-  static Token make_number() {
+  static Token make_numeric() {
     while (isdigit(peek()) || peek() == '.')
       next_char();
-    return make_token(TOKEN_NUMBER);
+    return make_token(TOKEN_NUMERIC);
   }
 
   static Token consume_token() {
@@ -178,7 +179,7 @@ public:
       return make_ident();
 
     if (isdigit(ch))
-      return make_number();
+      return make_numeric();
 
     switch (ch) {
     case '(':
@@ -210,7 +211,7 @@ public:
     return make_token(TOKEN_INVALID);
   }
 
-  static int lex(Arena *A, const char *filename) {
+  static DynArray<Token> lex(Arena *A, const char *filename) {
     arena = A;
     src = read_entire_file(arena, filename);
     curr_pos = SourceLocation{
@@ -220,15 +221,13 @@ public:
         .source_name = filename,
     };
 
+    DynArray<Token> tokens(arena, 32);
     while (!eof()) {
       Token token = consume_token();
-      char buf[256];
-      memcpy(buf, token.lexeme.buffer + token.lexeme.start, token.lexeme.len);
-      buf[token.lexeme.len] = 0;
-      printf("%s\n", buf);
+      tokens.push(token);
     }
 
-    return 0;
+    return tokens;
   }
 
 private:

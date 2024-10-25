@@ -1,21 +1,22 @@
 
-#include "collections.h"
+#include "lexer.h"
 #include "mem.h"
+#include <cstdio>
 
 int main(void) {
-  auto arena = Arena::init(4096);
-  // Lexer::lex(&arena, "programs/test.hex");
+  auto arena = Arena::init(MB(2));
+  auto tokens = Lexer::lex(&arena, "programs/test.hex");
 
-  const u32 chunk_size = 8;
-  DynArray<i32> arr(&arena, chunk_size);
+  for (auto it = tokens.make_iter(); !it.done(); it.next()) {
+    const Token *token = it.value();
 
-  for (i32 i = 0; i < (chunk_size * 2) - 4; i++) {
-    arr.push(i + 1);
+    char buf[64];
+    memcpy(buf, token->lexeme.buffer + token->lexeme.start, token->lexeme.len);
+    buf[token->lexeme.len] = 0;
+    printf("%s\n", buf);
   }
 
-  for (auto i = arr.make_iter(); !i.done(); i.next()) {
-    printf("%d\n", *i.value());
-  }
+  printf("%lu\n", sizeof(Token));
 
   arena.deinit();
   return 0;

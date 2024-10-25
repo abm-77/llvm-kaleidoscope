@@ -6,6 +6,10 @@
 
 #include "common.h"
 
+#define KB(x) x * 1024
+#define MB(x) KB(x) * 1024
+#define GB(x) GB(x) * 1024
+
 struct Slice {
   u8 *buffer;
   u32 start;
