@@ -43,6 +43,7 @@ enum TokenType {
   TOKEN_SEMICOLON,
   TOKEN_DOT,
   TOKEN_EQUAL,
+  TOKEN_EQUAL_EQUAL,
   TOKEN_PLUS,
   TOKEN_PLUS_EQUAL,
   TOKEN_MINUS,
@@ -116,8 +117,7 @@ public:
 
   static Slice get_source_slice() {
     return Slice{
-        .buffer = src.content,
-        .start = start_pos.byte_offset,
+        .ptr = src.content + start_pos.byte_offset,
         .len = (curr_pos.byte_offset - start_pos.byte_offset),
     };
   }
@@ -141,12 +141,11 @@ public:
   }
 
   static Token make_ident() {
-    auto tmp = arena->begin_temp();
     while (isalnum(peek()) && !eof())
       next_char();
     Slice lexeme = get_source_slice();
     char keyword[64];
-    memcpy(keyword, lexeme.buffer + lexeme.start, lexeme.len);
+    memcpy(keyword, lexeme.ptr, lexeme.len);
     keyword[lexeme.len] = 0;
     const TokenType *type = KEYWORDS.get(keyword);
     return (type) ? make_token(*type) : make_token(TOKEN_IDENTIFIER);
@@ -200,6 +199,8 @@ public:
       return make_equal_variant(TOKEN_STAR);
     case '/':
       return make_equal_variant(TOKEN_SLASH);
+    case '=':
+      return make_equal_variant(TOKEN_EQUAL);
     case '<':
       return make_equal_variant(TOKEN_LESS);
     case '>':

@@ -91,35 +91,32 @@ public:
   class Iterator {
   public:
     void next() {
-      i32 i = idx % chunk_size;
-      DataType *items = get_chunk(curr_chunk);
-      v = &items[i];
-
-      if (idx >= len) {
-        finished = true;
-        return;
-      }
-
       idx += 1;
 
-      if (i == chunk_size - 1) {
+      if (done())
+        return;
+
+      if (idx % chunk_size == 0) {
         curr_chunk = curr_chunk->next;
       }
+
+      i32 i = idx % chunk_size;
+
+      DataType *items = get_chunk(curr_chunk);
+      v = &items[i];
     }
 
-    bool done() { return finished; }
+    bool done() { return idx >= len; }
 
-    const DataType *value() { return v; }
+    DataType *value() { return v; }
 
     Iterator(ChunkHeader *start, u32 chunk_size, u32 len)
-        : idx(1), len(len), chunk_size(chunk_size), curr_chunk(start),
-          finished(false) {
+        : idx(0), len(len), chunk_size(chunk_size), curr_chunk(start) {
       v = &get_chunk(curr_chunk)[0];
     }
 
     Iterator()
-        : idx(0), len(0), chunk_size(0), v(nullptr), curr_chunk(nullptr),
-          finished(false) {}
+        : idx(0), len(0), chunk_size(0), v(nullptr), curr_chunk(nullptr) {}
 
   private:
     i32 idx;
@@ -127,7 +124,6 @@ public:
     u32 chunk_size;
     DataType *v;
     ChunkHeader *curr_chunk;
-    bool finished;
   };
 
 public:
@@ -157,18 +153,6 @@ public:
   Iterator make_iter() { return Iterator(head, chunk_size, len); }
 
 private:
-  void debug_iter() {
-    i32 i = 0;
-    ChunkHeader *curr = head;
-    while (curr) {
-      i32 *items = get_chunk(curr);
-      for (i32 k = 0; i < len && k < chunk_size; i++, k++) {
-        printf("items[%d] = %d\n", i, items[k]);
-      }
-      curr = curr->next;
-    }
-  }
-
   static DataType *get_chunk(ChunkHeader *chunk) {
     return reinterpret_cast<DataType *>(reinterpret_cast<uintptr_t>(chunk) +
                                         sizeof(ChunkHeader));

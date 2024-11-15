@@ -10,19 +10,12 @@
 #define MB(x) KB(x) * 1024
 #define GB(x) GB(x) * 1024
 
-struct Slice {
-  u8 *buffer;
-  u32 start;
-  u32 len;
-};
-
 class Arena {
 public:
   class TempArena {
   public:
     TempArena(Arena *arena) : arena(arena), start_offset(arena->ptr) {}
     void reset() { arena->ptr = start_offset; }
-    ~TempArena() { reset(); }
 
   private:
     Arena *arena;
@@ -78,3 +71,14 @@ private:
   u32 capacity;
   u32 ptr;
 };
+
+struct Slice {
+  u8 *ptr;
+  u32 len;
+};
+
+static u8 *materialize_slice(Arena *arena, Slice *slice) {
+  u8 *buff = arena->alloc(slice->len);
+  memcpy(buff, slice->ptr, slice->len);
+  return buff;
+}

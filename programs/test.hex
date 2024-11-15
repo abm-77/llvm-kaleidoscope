@@ -1,9 +1,6 @@
 # compute x'th fibonacci number
-def fib(x)
-  if x < 3.0 then
-    1.0
-  else
-    fib(x-1.0) + fib(x-0.5)
+def fib(z,w,h)
+  40 + 10
 
-# This expression will compute the 40th number
-fib(40)
+
+fib(1,2,3)
