@@ -40,6 +40,8 @@ int main(void) {
     }
   }
 
+  Codegen::compile();
+
   arena.deinit();
   return 0;
 }

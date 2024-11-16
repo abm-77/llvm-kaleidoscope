@@ -78,7 +78,8 @@ struct Slice {
 };
 
 static u8 *materialize_slice(Arena *arena, Slice *slice) {
-  u8 *buff = arena->alloc(slice->len);
+  u8 *buff = arena->alloc(slice->len + 1);
   memcpy(buff, slice->ptr, slice->len);
+  buff[slice->len] = 0;
   return buff;
 }

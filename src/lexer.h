@@ -26,6 +26,7 @@ enum TokenType {
   TOKEN_DEF,
   TOKEN_EXTERN,
   TOKEN_IDENTIFIER,
+  TOKEN_VAR,
   TOKEN_IF,
   TOKEN_THEN,
   TOKEN_ELSE,
@@ -70,9 +71,10 @@ struct Token {
   SourceSpan span;
 };
 
-const static StaticStringMap<TokenType, 14> KEYWORDS({
+const static StaticStringMap<TokenType, 15> KEYWORDS({
     {"extern", TOKEN_EXTERN},
     {"def", TOKEN_DEF},
+    {"var", TOKEN_VAR},
     {"for", TOKEN_FOR},
     {"while", TOKEN_WHILE},
     {"break", TOKEN_BREAK},
@@ -94,7 +96,6 @@ private:
   static u8 next_char() {
     if (eof())
       return '\0';
-
     u8 ch = src.content[curr_pos.byte_offset];
     if (ch == '\n') {
       curr_pos.line += 1;
@@ -103,7 +104,6 @@ private:
       curr_pos.column += 1;
     }
     curr_pos.byte_offset += 1;
-
     return ch;
   }
 

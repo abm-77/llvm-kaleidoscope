@@ -4,6 +4,8 @@
 #include "common.h"
 #include "lexer.h"
 #include "mem.h"
+#include <algorithm>
+#include <cstdio>
 
 enum AstExprType {
   AST_NUMERIC_EXPR,
@@ -14,10 +16,12 @@ enum AstExprType {
   AST_PROTOTYPE_EXPR,
   AST_FUNCTION_EXPR,
   AST_FOR_EXPR,
+  AST_VAR_EXPR,
 };
 
 enum Precedence {
   PRECEDENCE_LOWEST,
+  PRECEDENCE_ASSIGN,
   PRECEDENCE_EQ,
   PRECEDENCE_LT_GT,
   PRECEDENCE_SUM,
@@ -27,6 +31,11 @@ enum Precedence {
 };
 
 struct AstExpr {
+  struct LocalVar {
+    Slice name;
+    AstExpr *init_val;
+  };
+
   AstExprType type;
   union {
     struct {
@@ -63,6 +72,10 @@ struct AstExpr {
       AstExpr *step;
       AstExpr *body;
     } for_expr;
+    struct {
+      DynArray<LocalVar> vars;
+      AstExpr *body;
+    } var_expr;
   };
 };
 
@@ -163,6 +176,25 @@ static void print_ast_expr(Arena *arena, AstExpr *expr) {
     print_ast_expr(arena, expr->for_expr.body);
     printf("}\n");
   } break;
+  case AST_VAR_EXPR: {
+    printf("var_expr {\n");
+    printf("vars:\n");
+    for (auto it = expr->var_expr.vars.make_iter(); !it.done(); it.next()) {
+      auto local = it.value();
+      u8 *var_name = materialize_slice(arena, &local->name);
+      printf("%s", var_name);
+      if (local->init_val) {
+        printf(" = ");
+        print_ast_expr(arena, local->init_val);
+      }
+    }
+    printf("\n");
+    if (expr->var_expr.body) {
+      printf("body: \n");
+      print_ast_expr(arena, expr->var_expr.body);
+    }
+    printf("}\n");
+  } break;
   }
   tmp.reset();
 }
@@ -177,13 +209,15 @@ static AstExpr *ast_error(const char *msg) {
   return nullptr;
 }
 
-static const Token *token_error(const char *msg) {
+static Token *token_error(const char *msg) {
   fprintf(stderr, "error: %s\n", msg);
   return nullptr;
 }
 
 static Precedence get_token_precedence(const Token *token) {
   switch (token->type) {
+  case TOKEN_EQUAL:
+    return PRECEDENCE_ASSIGN;
   case TOKEN_BANG_EQUAL:
   case TOKEN_LESS_EQUAL:
   case TOKEN_GREATER_EQUAL:
@@ -205,8 +239,8 @@ static Precedence get_token_precedence(const Token *token) {
   }
 }
 
-static const Token *next_token() {
-  const Token *res = token_iter.value();
+static Token *next_token() {
+  Token *res = token_iter.value();
   token_iter.next();
   return res;
 }
@@ -215,7 +249,7 @@ static Token *peek() { return token_iter.value(); }
 static bool peek_is(TokenType type) { return peek()->type == type; }
 static AstExpr *parse_expr(Precedence precedence);
 
-static const Token *consume(TokenType type) {
+static Token *consume(TokenType type) {
   auto token = next_token();
   return (token->type == type) ? token : token_error("unexpected token");
 }
@@ -251,6 +285,37 @@ static AstExpr *parse_if_expr() {
   auto expr = arena->alloc<AstExpr>();
   expr->type = AST_IF_EXPR;
   expr->if_expr = {.cond = cond, .then = then, .otherwise = otherwise};
+  return expr;
+}
+
+static AstExpr *parse_var_expr() {
+  consume(TOKEN_VAR);
+  auto vars = DynArray<AstExpr::LocalVar>(arena, 1);
+  while (true) {
+    auto var = consume(TOKEN_IDENTIFIER);
+    AstExpr *init = nullptr;
+    if (peek_is(TOKEN_EQUAL)) {
+      consume(TOKEN_EQUAL);
+      init = parse_expr(PRECEDENCE_LOWEST);
+      if (!init)
+        return nullptr;
+    }
+    vars.push({.name = var->lexeme, .init_val = init});
+
+    if (!peek_is(TOKEN_COMMA))
+      break;
+
+    consume(TOKEN_COMMA);
+  }
+
+  consume(TOKEN_IN);
+  AstExpr *body = parse_expr(PRECEDENCE_LOWEST);
+  if (!body)
+    return nullptr;
+
+  auto expr = arena->alloc<AstExpr>();
+  expr->type = AST_VAR_EXPR;
+  expr->var_expr = {.vars = vars, .body = body};
   return expr;
 }
 
@@ -405,6 +470,9 @@ static AstExpr *parse_expr(Precedence precedence) {
     break;
   case TOKEN_FOR:
     lhs = parse_for_expr();
+    break;
+  case TOKEN_VAR:
+    lhs = parse_var_expr();
     break;
   default:
     printf("unexpected token: %s\n", peek()->lexeme.ptr);

@@ -3,19 +3,19 @@ extern print(str)
 # test optimization
 def test(x) (1+2+x)*(x+(1+2))
 
-# compute x'th fibonacci number
-def fib(x,y,z)
+def add3(x,y,z)
   x + y + z
 
 def hey(x)
   x
 
-fib(1,2,3)
-
 def printstar(n)
   for i = 1, i < n, 1.0 in
     hey(i) 
 
+def dosmth(z)
+  var a = 2, b = 7 + 8, c = 5, d = add3(1,2,3) in
+    a + b + c + d - z
 
 if 10 < 20 then
   1
