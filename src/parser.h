@@ -4,19 +4,16 @@
 #include "common.h"
 #include "lexer.h"
 #include "mem.h"
-#include <cmath>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ios>
 
 enum AstExprType {
   AST_NUMERIC_EXPR,
   AST_IDENTIFIER_EXPR,
   AST_INFIX_EXPR,
   AST_CALL_EXPR,
+  AST_IF_EXPR,
   AST_PROTOTYPE_EXPR,
   AST_FUNCTION_EXPR,
+  AST_FOR_EXPR,
 };
 
 enum Precedence {
@@ -54,6 +51,18 @@ struct AstExpr {
       AstExpr *prototype; // prototype_expr
       AstExpr *body;
     } function_expr;
+    struct {
+      AstExpr *cond;
+      AstExpr *then;
+      AstExpr *otherwise;
+    } if_expr;
+    struct {
+      Slice var_name;
+      AstExpr *start;
+      AstExpr *end;
+      AstExpr *step;
+      AstExpr *body;
+    } for_expr;
   };
 };
 
@@ -67,70 +76,94 @@ static const char *op_to_str(TokenType ty) {
     return "*";
   case TOKEN_SLASH:
     return "/";
+  case TOKEN_LESS:
+    return "<";
+  case TOKEN_GREATER:
+    return ">";
+  case TOKEN_LESS_EQUAL:
+    return "<=";
+  case TOKEN_GREATER_EQUAL:
+    return ">=";
   default:
     return "unknown";
   }
 }
 
-static void print_ast_expr(Arena *arena, AstExpr *expr, i32 indent) {
+static void print_ast_expr(Arena *arena, AstExpr *expr) {
   auto tmp = arena->begin_temp();
-
   switch (expr->type) {
   case AST_NUMERIC_EXPR: {
-    printf("%*s", indent, "");
     printf("numeric_expr { val = %f }\n", expr->numeric_expr.val);
   } break;
   case AST_IDENTIFIER_EXPR: {
     u8 *name = materialize_slice(arena, &expr->ident_expr.name);
-    printf("%*s", indent, "");
     printf("ident_expr { name = %s }\n", name);
   } break;
   case AST_INFIX_EXPR: {
-    printf("%*s", indent, "");
     printf("infix_expr:\n");
-    printf("%*s", indent, "");
     printf("op: %s\n", op_to_str(expr->infix_expr.op));
-    printf("%*s", indent, "");
     printf("lhs:\n");
-    print_ast_expr(arena, expr->infix_expr.lhs, indent + 1);
-    printf("%*s", indent, "");
+    print_ast_expr(arena, expr->infix_expr.lhs);
     printf("rhs:\n");
-    print_ast_expr(arena, expr->infix_expr.rhs, indent + 1);
+    print_ast_expr(arena, expr->infix_expr.rhs);
   } break;
   case AST_CALL_EXPR: {
     u8 *name = materialize_slice(arena, &expr->call_expr.name);
-    printf("%*s", indent, "");
     printf("call_expr { name = %s }\n", name);
   } break;
   case AST_PROTOTYPE_EXPR: {
     u8 *name = materialize_slice(arena, &expr->prototype_expr.name);
-    printf("%*s", indent, "");
     printf("proto_expr {\n");
-    printf("\tname = %s\n", name);
-    printf("\targs = ");
+    printf("name: %s\n", name);
+    printf("args: \n");
     for (auto it = expr->prototype_expr.args.make_iter(); !it.done();
          it.next()) {
-      print_ast_expr(arena, *it.value(), indent + 1);
+      print_ast_expr(arena, *it.value());
     }
+    printf("}\n");
   } break;
   case AST_FUNCTION_EXPR: {
     u8 *name = materialize_slice(
         arena, &expr->function_expr.prototype->prototype_expr.name);
-    printf("%*s", indent, "");
     printf("func_expr {\n");
     printf("name: %s\n", name);
     printf("args:\n");
     for (auto it =
              expr->function_expr.prototype->prototype_expr.args.make_iter();
          !it.done(); it.next()) {
-      print_ast_expr(arena, *it.value(), indent + 1);
+      print_ast_expr(arena, *it.value());
     }
     printf("body:\n");
-    print_ast_expr(arena, expr->function_expr.body, indent + 1);
+    print_ast_expr(arena, expr->function_expr.body);
+    printf("}\n");
+  } break;
+  case AST_IF_EXPR: {
+    printf("if_expr {\n");
+    printf("cond: ");
+    print_ast_expr(arena, expr->if_expr.cond);
+    printf("then: ");
+    print_ast_expr(arena, expr->if_expr.then);
+    printf("else: ");
+    print_ast_expr(arena, expr->if_expr.otherwise);
+    printf("}\n");
+  } break;
+  case AST_FOR_EXPR: {
+    u8 *name = materialize_slice(arena, &expr->for_expr.var_name);
+    printf("for_expr {\n");
+    printf("iter: %s \n", name);
+    printf("start:\n");
+    print_ast_expr(arena, expr->for_expr.start);
+    printf("end:\n");
+    print_ast_expr(arena, expr->for_expr.end);
+    if (expr->for_expr.step) {
+      printf("step: ");
+      print_ast_expr(arena, expr->for_expr.step);
+    }
+    printf("body:\n");
+    print_ast_expr(arena, expr->for_expr.body);
     printf("}\n");
   } break;
   }
-
   tmp.reset();
 }
 
@@ -140,7 +173,7 @@ static DynArray<Token>::Iterator token_iter;
 static Token curr_token;
 
 static AstExpr *ast_error(const char *msg) {
-  fprintf(stderr, "error: %s\n", msg);
+  fprintf(stdout, "error: %s\n", msg);
   return nullptr;
 }
 
@@ -199,6 +232,66 @@ static AstExpr *parse_numeric_expr() {
   return expr;
 }
 
+static AstExpr *parse_if_expr() {
+  consume(TOKEN_IF);
+  auto cond = parse_expr(PRECEDENCE_LOWEST);
+  if (!cond)
+    return ast_error("expected condition");
+
+  consume(TOKEN_THEN);
+  auto then = parse_expr(PRECEDENCE_LOWEST);
+  if (!then)
+    return ast_error("expected then branch");
+
+  consume(TOKEN_ELSE);
+  auto otherwise = parse_expr(PRECEDENCE_LOWEST);
+  if (!otherwise)
+    return ast_error("expected else branch");
+
+  auto expr = arena->alloc<AstExpr>();
+  expr->type = AST_IF_EXPR;
+  expr->if_expr = {.cond = cond, .then = then, .otherwise = otherwise};
+  return expr;
+}
+
+static AstExpr *parse_for_expr() {
+  consume(TOKEN_FOR);
+  auto var = consume(TOKEN_IDENTIFIER);
+  consume(TOKEN_EQUAL);
+
+  auto start = parse_expr(PRECEDENCE_LOWEST);
+  if (!start)
+    return nullptr;
+  consume(TOKEN_COMMA);
+
+  auto end = parse_expr(PRECEDENCE_LOWEST);
+  if (!end)
+    return nullptr;
+
+  AstExpr *step = nullptr;
+  if (peek_is(TOKEN_COMMA)) {
+    consume(TOKEN_COMMA);
+    step = parse_expr(PRECEDENCE_LOWEST);
+    if (!step)
+      return nullptr;
+  }
+
+  consume(TOKEN_IN);
+  auto body = parse_expr(PRECEDENCE_LOWEST);
+  if (!body)
+    return nullptr;
+
+  auto expr = arena->alloc<AstExpr>();
+  expr->type = AST_FOR_EXPR;
+  expr->for_expr = {
+      .var_name = var->lexeme,
+      .start = start,
+      .end = end,
+      .step = step,
+      .body = body,
+  };
+  return expr;
+}
 static AstExpr *parse_grouped_expr() {
   consume(TOKEN_LPAREN);
   auto v = parse_expr(PRECEDENCE_LOWEST);
@@ -219,7 +312,6 @@ static DynArray<AstExpr *> parse_expr_list(TokenType start, TokenType end) {
     }
     consume(end);
   }
-
   return exprs;
 }
 
@@ -308,14 +400,20 @@ static AstExpr *parse_expr(Precedence precedence) {
   case TOKEN_LPAREN:
     lhs = parse_grouped_expr();
     break;
+  case TOKEN_IF:
+    lhs = parse_if_expr();
+    break;
+  case TOKEN_FOR:
+    lhs = parse_for_expr();
+    break;
   default:
-    printf("%s\n", peek()->lexeme.ptr);
+    printf("unexpected token: %s\n", peek()->lexeme.ptr);
     lhs = nullptr;
     break;
   }
 
   if (!lhs)
-    return ast_error("unknown token when expecting lhs expression");
+    return ast_error("unknown token when parsing lhs expression");
 
   while (precedence < get_token_precedence(peek())) {
     AstExpr *infix;
@@ -359,14 +457,16 @@ static DynArray<AstExpr *> parse(Arena *A, DynArray<Token> tokens) {
     switch (peek()->type) {
     case TOKEN_EXTERN:
       if (auto expr = parse_extern_expr()) {
-        print_ast_expr(arena, expr, 0);
+        exprs.push(expr);
+        print_ast_expr(arena, expr);
       } else {
         next_token();
       }
       break;
     case TOKEN_DEF:
       if (auto expr = parse_definition_expr()) {
-        print_ast_expr(arena, expr, 0);
+        exprs.push(expr);
+        print_ast_expr(arena, expr);
       } else {
         next_token();
       }
@@ -376,7 +476,8 @@ static DynArray<AstExpr *> parse(Arena *A, DynArray<Token> tokens) {
       return exprs;
     default:
       if (auto expr = parse_top_level_expr()) {
-        print_ast_expr(arena, expr, 0);
+        exprs.push(expr);
+        print_ast_expr(arena, expr);
       } else {
         next_token();
       }

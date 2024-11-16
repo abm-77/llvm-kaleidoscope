@@ -1,6 +1,23 @@
-# compute x'th fibonacci number
-def fib(z,w,h)
-  40 + 10
+extern print(str)
 
+# test optimization
+def test(x) (1+2+x)*(x+(1+2))
+
+# compute x'th fibonacci number
+def fib(x,y,z)
+  x + y + z
+
+def hey(x)
+  x
 
 fib(1,2,3)
+
+def printstar(n)
+  for i = 1, i < n, 1.0 in
+    hey(i) 
+
+
+if 10 < 20 then
+  1
+else
+  2

@@ -128,7 +128,7 @@ public:
 
 public:
   DynArray(Arena *arena, u32 base_capacity)
-      : arena(arena), chunk_size(base_capacity), len(0), cap(base_capacity) {
+      : arena(arena), chunk_size(base_capacity), length(0), cap(base_capacity) {
     head = alloc_chunk();
     head->next = nullptr;
     tail = head;
@@ -137,9 +137,9 @@ public:
   void push(DataType v) {
     DataType *items = get_chunk(tail);
 
-    i32 idx = len % chunk_size;
+    u32 idx = length % chunk_size;
     items[idx] = v;
-    len += 1;
+    length += 1;
 
     if (idx == chunk_size - 1) {
       tail->next = alloc_chunk();
@@ -148,9 +148,20 @@ public:
     }
   }
 
-  u32 get_len() { return len; }
+  DataType get(u32 i) {
+    u32 chunk_idx = i / chunk_size;
+    ChunkHeader *chunk = head;
 
-  Iterator make_iter() { return Iterator(head, chunk_size, len); }
+    for (i32 i = 0; i < chunk_idx; i++)
+      chunk = chunk->next;
+
+    u32 idx = i % chunk_size;
+    return get_chunk(chunk)[idx];
+  }
+
+  u32 len() { return length; }
+
+  Iterator make_iter() { return Iterator(head, chunk_size, length); }
 
 private:
   static DataType *get_chunk(ChunkHeader *chunk) {
@@ -167,6 +178,6 @@ private:
   ChunkHeader *head;
   ChunkHeader *tail;
   u32 chunk_size;
-  u32 len;
+  u32 length;
   u32 cap;
 };

@@ -30,6 +30,7 @@ enum TokenType {
   TOKEN_THEN,
   TOKEN_ELSE,
   TOKEN_FOR,
+  TOKEN_IN,
   TOKEN_WHILE,
   TOKEN_BREAK,
   TOKEN_OR,
@@ -69,7 +70,7 @@ struct Token {
   SourceSpan span;
 };
 
-const static StaticStringMap<TokenType, 13> KEYWORDS({
+const static StaticStringMap<TokenType, 14> KEYWORDS({
     {"extern", TOKEN_EXTERN},
     {"def", TOKEN_DEF},
     {"for", TOKEN_FOR},
@@ -77,6 +78,7 @@ const static StaticStringMap<TokenType, 13> KEYWORDS({
     {"break", TOKEN_BREAK},
     {"continue", TOKEN_CONTINUE},
     {"if", TOKEN_IF},
+    {"in", TOKEN_IN},
     {"then", TOKEN_THEN},
     {"else", TOKEN_ELSE},
     {"or", TOKEN_OR},
